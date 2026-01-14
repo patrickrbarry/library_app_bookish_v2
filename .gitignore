@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Test data (don't commit your personal library)
+IMPORT-CLASSIFIED.json
+
+# Logs
+*.log
