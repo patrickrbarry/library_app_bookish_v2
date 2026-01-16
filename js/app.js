@@ -5,6 +5,7 @@
 
 import { dataStore } from './data.js';
 import { lookupISBN, autoClassifyGenre, validateISBN } from './api.js';
+import { startBarcodeScanner, stopBarcodeScanner } from './barcode.js';
 import { 
   renderBooksTable, 
   updateCounts, 
@@ -50,11 +51,11 @@ const state = {
 /**
  * Initialize Application
  */
-function init() {
+async function init() {
   console.log('🚀 Bookish Library v2 Initializing...');
   
   // Load and render initial data
-  loadAndRender();
+  await loadAndRender();
   
   // Setup event listeners
   setupEventListeners();
@@ -65,7 +66,10 @@ function init() {
 /**
  * Load data and render UI
  */
-function loadAndRender() {
+async function loadAndRender() {
+  // Load books from Supabase
+  await dataStore.loadFromStorage();
+  
   // Apply filters and sort
   applyFiltersAndSort();
   
@@ -131,10 +135,20 @@ function setupEventListeners() {
     }
   });
   
-  // Quick add buttons (placeholders for future implementation)
-  document.getElementById('scanBarcodeBtn')?.addEventListener('click', () => {
-    showToast('Barcode scanning coming soon!');
+  // Barcode scanning
+  document.getElementById('scanBarcodeBtn')?.addEventListener('click', handleBarcodeScanning);
+  
+  // Barcode modal
+  document.getElementById('barcodeModalClose')?.addEventListener('click', () => {
+    stopBarcodeScanner();
+    document.getElementById('barcodeModal').classList.remove('active');
   });
+  document.getElementById('barcodeModalBackdrop')?.addEventListener('click', () => {
+    stopBarcodeScanner();
+    document.getElementById('barcodeModal').classList.remove('active');
+  });
+  
+  // OCR buttons (still placeholders)
   document.getElementById('scanTitleBtn')?.addEventListener('click', () => {
     showToast('Title page scanning coming soon!');
   });
@@ -290,7 +304,7 @@ function handleEditBook() {
 /**
  * Handle delete book
  */
-function handleDeleteBook() {
+async function handleDeleteBook() {
   const sheet = document.getElementById('detailSheet');
   const bookId = sheet?.dataset.bookId;
   if (!bookId) return;
@@ -302,10 +316,10 @@ function handleDeleteBook() {
   if (!confirmed) return;
   
   try {
-    dataStore.deleteBook(bookId);
+    await dataStore.deleteBook(bookId);
     showToast('Book deleted');
     closeDetailSheet();
-    loadAndRender();
+    await loadAndRender();
   } catch (error) {
     console.error('Delete error:', error);
     showToast('Failed to delete book');
@@ -315,7 +329,7 @@ function handleDeleteBook() {
 /**
  * Handle save book (add or edit)
  */
-function handleSaveBook(e) {
+async function handleSaveBook(e) {
   e.preventDefault();
   
   const modal = document.getElementById('bookModal');
@@ -327,22 +341,68 @@ function handleSaveBook(e) {
   try {
     if (mode === 'edit' && bookId) {
       // Update existing book
-      dataStore.updateBook(bookId, formData);
+      await dataStore.updateBook(bookId, formData);
       showToast('Book updated!');
     } else {
       // Add new book
-      dataStore.addBook(formData);
+      await dataStore.addBook(formData);
       showToast('Book added!');
     }
     
     closeBookModal();
-    loadAndRender();
+    await loadAndRender();
   } catch (error) {
     console.error('Save error:', error);
     showToast(`Error: ${error.message}`);
   }
 }
 
+/**
+ * Handle barcode scanning
+ */
+/**
+ * Handle barcode scanning with multi-ISBN support
+ */
+function handleBarcodeScanning() {
+  const modal = document.getElementById('barcodeModal');
+  modal.classList.add('active');
+  
+  startBarcodeScanner(
+    'barcodeScannerContainer',
+    async (isbns) => {
+      // Multiple barcodes detected - try each one
+      stopBarcodeScanner();
+      modal.classList.remove('active');
+      
+      showToast(`📷 Found ${isbns.length} barcode(s)! Trying each...`);
+      
+      // Try each ISBN until we find one that works
+      for (let i = 0; i < isbns.length; i++) {
+        const isbn = isbns[i];
+        console.log(`Trying ISBN ${i + 1}/${isbns.length}: ${isbn}`);
+        
+        const bookData = await lookupISBN(isbn);
+        
+        if (bookData) {
+          // Success! Found the book
+          const classification = autoClassifyGenre(bookData.categories);
+          autofillBookForm(bookData, classification);
+          showToast(`✅ Book found: ${bookData.title}`);
+          return; // Stop trying other ISBNs
+        }
+      }
+      
+      // None of the ISBNs worked
+      showToast(`❌ Tried ${isbns.length} barcode(s) but couldn't find book. Add manually.`);
+      document.getElementById('bookISBN').value = isbns[0]; // Save first ISBN
+    },
+    (error) => {
+      stopBarcodeScanner();
+      modal.classList.remove('active');
+      showToast(error);
+    }
+  );
+}
 /**
  * Handle ISBN lookup
  */
@@ -416,13 +476,13 @@ function handleImportClick() {
 /**
  * Handle import file selection
  */
-function handleImportFile(e) {
+async function handleImportFile(e) {
   const file = e.target.files[0];
   if (!file) return;
   
   const reader = new FileReader();
   
-  reader.onload = (event) => {
+  reader.onload = async (event) => {
     try {
       const result = parseImportedJSON(event.target.result);
       
@@ -431,14 +491,14 @@ function handleImportFile(e) {
         return;
       }
       
-      const importResult = dataStore.importBooks(result.data);
+      const importResult = await dataStore.importBooks(result.data);
       
       showToast(
         `✅ Imported ${importResult.imported} books! ` +
         `(${importResult.skipped} duplicates skipped)`
       );
       
-      loadAndRender();
+      await loadAndRender();
     } catch (error) {
       console.error('Import error:', error);
       showToast(`Import failed: ${error.message}`);
