@@ -801,3 +801,58 @@ body {
 .mb-sm { margin-bottom: var(--spacing-sm); }
 .mb-md { margin-bottom: var(--spacing-md); }
 .mb-lg { margin-bottom: var(--spacing-lg); }
+/* Focus indicator (tap to focus) */
+.focus-indicator {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border: 2px solid white;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: focusPulse 1s ease-out;
+}
+
+@keyframes focusPulse {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.5);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Barcode detection flash */
+.barcode-flash-success,
+.barcode-flash-warning {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: flashOverlay 0.3s ease-out;
+}
+
+.barcode-flash-success {
+  background: rgba(45, 134, 89, 0.3);
+}
+
+.barcode-flash-warning {
+  background: rgba(255, 193, 7, 0.3);
+}
+
+@keyframes flashOverlay {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Status message */
+.barcode-status-info {
+  color: var(--text-medium);
+  background: var(--bg-card);
+}
+
+.barcode-status-success {
+  color: var(--success);
+  background: rgba(45, 134, 89, 0.1);
+}
