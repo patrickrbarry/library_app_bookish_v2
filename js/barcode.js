@@ -17,15 +17,17 @@ export function startBarcodeScanner(containerId, onDetected, onError) {
   }
 
   Quagga.init({
-    inputStream: {
+inputStream: {
       name: "Live",
       type: "LiveStream",
       target: document.querySelector(`#${containerId}`),
       constraints: {
-        facingMode: "environment"
+        facingMode: "environment",
+        width: { min: 640, ideal: 1280, max: 1920 },
+        height: { min: 480, ideal: 720, max: 1080 },
+        aspectRatio: { ideal: 1.777777778 }
       }
-    },
-    decoder: {
+    },    decoder: {
       readers: [
         "ean_reader",
         "ean_8_reader",
@@ -34,8 +36,10 @@ export function startBarcodeScanner(containerId, onDetected, onError) {
         "upc_reader",
         "upc_e_reader"
       ]
-    }
-  }, function(err) {
+},
+    locate: true,
+    numOfWorkers: 2,
+    frequency: 10,  }, function(err) {
     if (err) {
       console.error('Quagga init error:', err);
       onError('Failed to start camera. Please check permissions.');
