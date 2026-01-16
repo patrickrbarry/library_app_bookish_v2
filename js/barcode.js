@@ -88,8 +88,8 @@ export function startBarcodeScanner(containerId, onDetected, onError) {
       // Visual feedback - flash green
       flashBarcodeDetection(true);
       
-      // Update status with count
-      updateStatus(`✅ Found ${detectedBarcodes.size} ISBN(s)! Keep scanning...`, 'success');
+      // Update status - clear "SCANNED!" message
+      updateStatus(`✅ SCANNED! Found ${detectedBarcodes.size} ISBN(s)`, 'success');
       
       // Reset timer - collect barcodes for 5 seconds after last detection
       if (detectionTimer) {
@@ -98,6 +98,7 @@ export function startBarcodeScanner(containerId, onDetected, onError) {
       
       detectionTimer = setTimeout(() => {
         console.log(`Finished scanning. Found ${detectedBarcodes.size} unique ISBNs:`, Array.from(detectedBarcodes));
+        updateStatus('🔍 Processing barcodes...', 'info');
         onDetected(Array.from(detectedBarcodes));
       }, 5000);
       
