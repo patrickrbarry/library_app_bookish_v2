@@ -196,14 +196,3 @@ export function stopBarcodeScanner() {
   videoElement = null;
   Quagga.stop();
 }
-/**
- * Stop barcode scanner
- */
-export function stopBarcodeScanner() {
-  if (detectionTimer) {
-    clearTimeout(detectionTimer);
-    detectionTimer = null;
-  }
-  detectedBarcodes.clear();
-  Quagga.stop();
-}
