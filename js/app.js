@@ -29,7 +29,7 @@ import {
   getExportFilename,
   parseImportedJSON
 } from './utils.js';
-
+import { findDuplicate, handleDuplicate } from './duplicates.js';
 /**
  * Application State
  */
@@ -358,10 +358,7 @@ async function handleSaveBook(e) {
 }
 
 /**
- * Handle barcode scanning
- */
-/**
- * Handle barcode scanning with multi-ISBN support
+ * Handle barcode scanning with multi-ISBN support and duplicate detection
  */
 function handleBarcodeScanning() {
   const modal = document.getElementById('barcodeModal');
@@ -384,7 +381,21 @@ function handleBarcodeScanning() {
         const bookData = await lookupISBN(isbn);
         
         if (bookData) {
-          // Success! Found the book
+          // Success! Found the book - now check for duplicates
+          const existingBook = findDuplicate(bookData.title, bookData.author);
+          
+          if (existingBook) {
+            // Duplicate found - let user decide what to do
+            const shouldContinue = await handleDuplicate(bookData, existingBook);
+            if (shouldContinue) {
+              // User cancelled or we handled it (added format)
+              return;
+            }
+            // User wants to add as separate copy - form is already filled
+            return;
+          }
+          
+          // No duplicate - auto-fill form normally
           const classification = autoClassifyGenre(bookData.categories);
           autofillBookForm(bookData, classification);
           showToast(`✅ Book found: ${bookData.title}`);
@@ -402,9 +413,8 @@ function handleBarcodeScanning() {
       showToast(error);
     }
   );
-}
 /**
- * Handle ISBN lookup
+ * Handle ISBN lookup with duplicate detection
  */
 async function handleISBNLookup() {
   const input = document.getElementById('isbnInput');
@@ -429,16 +439,29 @@ async function handleISBNLookup() {
     const bookData = await lookupISBN(validation.isbn);
     
     if (bookData) {
-      // Auto-classify genre
+      // Check for duplicates before auto-filling
+      const existingBook = findDuplicate(bookData.title, bookData.author);
+      
+      if (existingBook) {
+        // Duplicate found - let user decide
+        const shouldContinue = await handleDuplicate(bookData, existingBook);
+        if (shouldContinue) {
+          // User cancelled or we handled it
+          clearISBNInput();
+          setISBNLookupLoading(false);
+          return;
+        }
+        // User wants to add as separate copy - form is already filled
+        clearISBNInput();
+        setISBNLookupLoading(false);
+        showToast(`✅ Book found via ${bookData.source}! Adding as separate copy.`);
+        return;
+      }
+      
+      // No duplicate - auto-fill form normally
       const classification = autoClassifyGenre(bookData.categories);
-      
-      // Auto-fill form
       autofillBookForm(bookData, classification);
-      
-      // Clear ISBN input
       clearISBNInput();
-      
-      // Show success message
       showToast(`✅ Book found via ${bookData.source}! Review and save.`);
     } else {
       // Book not found
@@ -451,8 +474,6 @@ async function handleISBNLookup() {
     setISBNLookupLoading(false);
   }
 }
-
-/**
  * Handle export
  */
 function handleExport() {
