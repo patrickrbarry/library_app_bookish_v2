@@ -474,6 +474,7 @@ async function handleISBNLookup() {
     setISBNLookupLoading(false);
   }
 }
+/**
  * Handle export
  */
 function handleExport() {
