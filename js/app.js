@@ -515,8 +515,7 @@ async function handleImportFile(e) {
       
       const importResult = await dataStore.importBooks(result.data);
       
-      showToast(
-        `✅ Imported ${importResult.imported} books! ` +
+      showToast(`✅ Imported ${importResult.imported} books! ` +
         `(${importResult.skipped} duplicates skipped)`
       );
       
@@ -531,6 +530,7 @@ async function handleImportFile(e) {
   };
   
   reader.readAsText(file);
+}
 }
 
 // Initialize app when DOM is ready
