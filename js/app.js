@@ -182,7 +182,64 @@ function applyFiltersAndSort() {
 function handleAddBook() {
   openBookModal();
 }
+/**
+ * Handle export
+ */
+function handleExport() {
+  const books = dataStore.exportBooks();
+  const filename = getExportFilename();
+  
+  downloadJSON(books, filename);
+  showToast(`📤 Exported ${books.length} books!`);
+}
 
+/**
+ * Handle import button click
+ */
+function handleImportClick() {
+  const fileInput = document.getElementById('importFile');
+  if (fileInput) {
+    fileInput.click();
+  }
+}
+
+/**
+ * Handle import file selection
+ */
+async function handleImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  
+  reader.onload = async (event) => {
+    try {
+      const result = parseImportedJSON(event.target.result);
+      
+      if (!result.success) {
+        showToast(`Import failed: ${result.error}`);
+        return;
+      }
+      
+      const importResult = await dataStore.importBooks(result.data);
+      
+      showToast(
+        `✅ Imported ${importResult.imported} books! ` +
+        `(${importResult.skipped} duplicates skipped)`
+      );
+      
+      await loadAndRender();
+    } catch (error) {
+      console.error('Import error:', error);
+      showToast(`Import failed: ${error.message}`);
+    }
+    
+    // Reset file input
+    e.target.value = '';
+  };
+  
+  reader.readAsText(file);
+}
 /**
  * Handle search input change
  */
@@ -473,65 +530,6 @@ async function handleISBNLookup() {
   } finally {
     setISBNLookupLoading(false);
   }
-}
-/**
- * Handle export
- */
-function handleExport() {
-  const books = dataStore.exportBooks();
-  const filename = getExportFilename();
-  
-  downloadJSON(books, filename);
-  showToast(`📤 Exported ${books.length} books!`);
-}
-
-
-/**
- * Handle import button click
- */
-function handleImportClick() {
-  const fileInput = document.getElementById('importFile');
-  if (fileInput) {
-    fileInput.click();
-  }
-}
-
-/**
- * Handle import file selection
- */
-async function handleImportFile(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  
-  reader.onload = async (event) => {
-    try {
-      const result = parseImportedJSON(event.target.result);
-      
-      if (!result.success) {
-        showToast(`Import failed: ${result.error}`);
-        return;
-      }
-      
-      const importResult = await dataStore.importBooks(result.data);
-      
-      showToast(`✅ Imported ${importResult.imported} books! ` +
-        `(${importResult.skipped} duplicates skipped)`
-      );
-      
-      await loadAndRender();
-    } catch (error) {
-      console.error('Import error:', error);
-      showToast(`Import failed: ${error.message}`);
-    }
-    
-    // Reset file input
-    e.target.value = '';
-  };
-  
-  reader.readAsText(file);
-}
 }
 
 // Initialize app when DOM is ready
