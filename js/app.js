@@ -29,7 +29,7 @@ import {
   getExportFilename,
   parseImportedJSON
 } from './utils.js';
-import { findDuplicate, handleDuplicate } from './duplicates.js';
+
 /**
  * Application State
  */
@@ -182,64 +182,7 @@ function applyFiltersAndSort() {
 function handleAddBook() {
   openBookModal();
 }
-/**
- * Handle export
- */
-function handleExport() {
-  const books = dataStore.exportBooks();
-  const filename = getExportFilename();
-  
-  downloadJSON(books, filename);
-  showToast(`📤 Exported ${books.length} books!`);
-}
 
-/**
- * Handle import button click
- */
-function handleImportClick() {
-  const fileInput = document.getElementById('importFile');
-  if (fileInput) {
-    fileInput.click();
-  }
-}
-
-/**
- * Handle import file selection
- */
-async function handleImportFile(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  
-  reader.onload = async (event) => {
-    try {
-      const result = parseImportedJSON(event.target.result);
-      
-      if (!result.success) {
-        showToast(`Import failed: ${result.error}`);
-        return;
-      }
-      
-      const importResult = await dataStore.importBooks(result.data);
-      
-      showToast(
-        `✅ Imported ${importResult.imported} books! ` +
-        `(${importResult.skipped} duplicates skipped)`
-      );
-      
-      await loadAndRender();
-    } catch (error) {
-      console.error('Import error:', error);
-      showToast(`Import failed: ${error.message}`);
-    }
-    
-    // Reset file input
-    e.target.value = '';
-  };
-  
-  reader.readAsText(file);
-}
 /**
  * Handle search input change
  */
@@ -415,7 +358,10 @@ async function handleSaveBook(e) {
 }
 
 /**
- * Handle barcode scanning with multi-ISBN support and duplicate detection
+ * Handle barcode scanning
+ */
+/**
+ * Handle barcode scanning with multi-ISBN support
  */
 function handleBarcodeScanning() {
   const modal = document.getElementById('barcodeModal');
@@ -438,21 +384,7 @@ function handleBarcodeScanning() {
         const bookData = await lookupISBN(isbn);
         
         if (bookData) {
-          // Success! Found the book - now check for duplicates
-          const existingBook = findDuplicate(bookData.title, bookData.author);
-          
-          if (existingBook) {
-            // Duplicate found - let user decide what to do
-            const shouldContinue = await handleDuplicate(bookData, existingBook);
-            if (shouldContinue) {
-              // User cancelled or we handled it (added format)
-              return;
-            }
-            // User wants to add as separate copy - form is already filled
-            return;
-          }
-          
-          // No duplicate - auto-fill form normally
+          // Success! Found the book
           const classification = autoClassifyGenre(bookData.categories);
           autofillBookForm(bookData, classification);
           showToast(`✅ Book found: ${bookData.title}`);
@@ -470,8 +402,9 @@ function handleBarcodeScanning() {
       showToast(error);
     }
   );
+}
 /**
- * Handle ISBN lookup with duplicate detection
+ * Handle ISBN lookup
  */
 async function handleISBNLookup() {
   const input = document.getElementById('isbnInput');
@@ -496,29 +429,16 @@ async function handleISBNLookup() {
     const bookData = await lookupISBN(validation.isbn);
     
     if (bookData) {
-      // Check for duplicates before auto-filling
-      const existingBook = findDuplicate(bookData.title, bookData.author);
-      
-      if (existingBook) {
-        // Duplicate found - let user decide
-        const shouldContinue = await handleDuplicate(bookData, existingBook);
-        if (shouldContinue) {
-          // User cancelled or we handled it
-          clearISBNInput();
-          setISBNLookupLoading(false);
-          return;
-        }
-        // User wants to add as separate copy - form is already filled
-        clearISBNInput();
-        setISBNLookupLoading(false);
-        showToast(`✅ Book found via ${bookData.source}! Adding as separate copy.`);
-        return;
-      }
-      
-      // No duplicate - auto-fill form normally
+      // Auto-classify genre
       const classification = autoClassifyGenre(bookData.categories);
+      
+      // Auto-fill form
       autofillBookForm(bookData, classification);
+      
+      // Clear ISBN input
       clearISBNInput();
+      
+      // Show success message
       showToast(`✅ Book found via ${bookData.source}! Review and save.`);
     } else {
       // Book not found
@@ -532,10 +452,68 @@ async function handleISBNLookup() {
   }
 }
 
+/**
+ * Handle export
+ */
+function handleExport() {
+  const books = dataStore.exportBooks();
+  const filename = getExportFilename();
+  
+  downloadJSON(books, filename);
+  showToast(`📤 Exported ${books.length} books!`);
+}
+
+/**
+ * Handle import button click
+ */
+function handleImportClick() {
+  const fileInput = document.getElementById('importFile');
+  if (fileInput) {
+    fileInput.click();
+  }
+}
+
+/**
+ * Handle import file selection
+ */
+async function handleImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  
+  reader.onload = async (event) => {
+    try {
+      const result = parseImportedJSON(event.target.result);
+      
+      if (!result.success) {
+        showToast(`Import failed: ${result.error}`);
+        return;
+      }
+      
+      const importResult = await dataStore.importBooks(result.data);
+      
+      showToast(
+        `✅ Imported ${importResult.imported} books! ` +
+        `(${importResult.skipped} duplicates skipped)`
+      );
+      
+      await loadAndRender();
+    } catch (error) {
+      console.error('Import error:', error);
+      showToast(`Import failed: ${error.message}`);
+    }
+    
+    // Reset file input
+    e.target.value = '';
+  };
+  
+  reader.readAsText(file);
+}
+
 // Initialize app when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
 }
-
