@@ -248,8 +248,9 @@ export function getBookFormData() {
 
 /**
  * Auto-fill form with ISBN lookup results
+ * @param {boolean} defaultPhysical - if true, pre-checks the Physical format checkbox
  */
-export function autofillBookForm(bookData, autoClassification = null) {
+export function autofillBookForm(bookData, autoClassification = null, defaultPhysical = false) {
   if (bookData.title) {
     document.getElementById('bookTitle').value = bookData.title;
   }
@@ -274,6 +275,11 @@ export function autofillBookForm(bookData, autoClassification = null) {
     if (autoClassification.fictionType) {
       document.getElementById('bookFictionType').value = autoClassification.fictionType;
     }
+  }
+
+  // Pre-check Physical format when scanning a barcode
+  if (defaultPhysical) {
+    document.getElementById('formatPhysical').checked = true;
   }
 }
 

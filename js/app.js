@@ -366,35 +366,90 @@ async function handleSaveBook(e) {
 function handleBarcodeScanning() {
   const modal = document.getElementById('barcodeModal');
   modal.classList.add('active');
-  
+
   startBarcodeScanner(
     'barcodeScannerContainer',
     async (isbns) => {
       // Multiple barcodes detected - try each one
       stopBarcodeScanner();
       modal.classList.remove('active');
-      
+
       showToast(`📷 Found ${isbns.length} barcode(s)! Trying each...`);
-      
+
       // Try each ISBN until we find one that works
       for (let i = 0; i < isbns.length; i++) {
         const isbn = isbns[i];
         console.log(`Trying ISBN ${i + 1}/${isbns.length}: ${isbn}`);
-        
+
         const bookData = await lookupISBN(isbn);
-        
+
         if (bookData) {
-          // Success! Found the book
+          // Check for duplicate before opening the form
+          const allBooks = dataStore.getAllBooks();
+          const existing = allBooks.find(b =>
+            b.title.toLowerCase() === bookData.title.toLowerCase() &&
+            b.author.toLowerCase() === bookData.author.toLowerCase()
+          );
+
+          if (existing) {
+            const existingFormats = existing.formats.join(', ');
+            const alreadyPhysical = existing.formats.includes('physical');
+
+            if (alreadyPhysical) {
+              // Already have it as physical — just ask if they want a second copy
+              const addAnother = confirm(
+                `You already have "${bookData.title}" as a physical book.\n\nAdd it again as a second copy?`
+              );
+              if (!addAnother) return;
+              // Fall through to open the form as a new entry
+            } else {
+              // Have it in another format — offer to add physical to existing record
+              const addFormat = confirm(
+                `You already have "${bookData.title}" (${existingFormats}).\n\nAdd Physical format to the existing record?`
+              );
+              if (addFormat) {
+                const updatedFormats = [...existing.formats, 'physical'];
+                try {
+                  await dataStore.updateBook(existing.id, {
+                    title: existing.title,
+                    author: existing.author,
+                    status: existing.status,
+                    genre: existing.genre,
+                    fictionType: existing.fiction_type,
+                    difficulty: existing.difficulty,
+                    formats: updatedFormats,
+                    notes: existing.notes,
+                    isbn: existing.isbn,
+                    publicationDate: existing.publication_date,
+                    acquiredDate: existing.acquired_date,
+                    coverUrl: existing.cover_url
+                  });
+                  showToast(`✅ Added Physical format to "${existing.title}"`);
+                  await loadAndRender();
+                } catch (err) {
+                  console.error('Failed to update formats:', err);
+                  showToast('Failed to update book formats.');
+                }
+                return;
+              }
+              // User said no — fall through to open the form as a new entry
+            }
+          }
+
+          // No duplicate (or user chose to add anyway) — open form
           const classification = autoClassifyGenre(bookData.categories);
-          autofillBookForm(bookData, classification);
+          openBookModal();
+          autofillBookForm(bookData, classification, true);
           showToast(`✅ Book found: ${bookData.title}`);
           return; // Stop trying other ISBNs
         }
       }
-      
-      // None of the ISBNs worked
+
+      // None of the ISBNs worked — open blank form with ISBN pre-filled and Physical checked
       showToast(`❌ Tried ${isbns.length} barcode(s) but couldn't find book. Add manually.`);
-      document.getElementById('bookISBN').value = isbns[0]; // Save first ISBN
+      openBookModal();
+      document.getElementById('bookISBN').value = isbns[0];
+      document.getElementById('formatPhysical').checked = true;
     },
     (error) => {
       stopBarcodeScanner();
