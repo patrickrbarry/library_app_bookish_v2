@@ -623,6 +623,19 @@ body {
 .isbn-input-group {
   display: flex;
   gap: var(--spacing-sm);
+  width: 100%;
+}
+
+.isbn-input-group .form-input {
+  flex: 1 1 0;
+  min-width: 0; /* prevents flex overflow on small screens */
+}
+
+.isbn-input-group .btn-primary {
+  flex: 0 0 auto; /* don't grow or shrink - fixed width */
+  white-space: nowrap;
+  padding-left: var(--spacing-md);
+  padding-right: var(--spacing-md);
 }
 
 .paste-lookup-btn {
