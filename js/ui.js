@@ -5,15 +5,16 @@
 
 /**
  * Render books table
+ * @param {boolean} selectMode - if true, renders a checkbox column
  */
-export function renderBooksTable(books) {
+export function renderBooksTable(books, selectMode = false) {
   const tbody = document.getElementById('booksTableBody');
   if (!tbody) return;
 
   if (books.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-light);">
+        <td colspan="${selectMode ? 6 : 5}" style="text-align: center; padding: 2rem; color: var(--text-light);">
           No books found. Try adjusting your filters or add your first book!
         </td>
       </tr>
@@ -23,6 +24,9 @@ export function renderBooksTable(books) {
 
   tbody.innerHTML = books.map(book => `
     <tr data-book-id="${book.id}">
+      <td class="select-cell">
+        ${selectMode ? `<input type="checkbox" data-book-id="${book.id}" />` : ''}
+      </td>
       <td>${escapeHtml(book.title)}</td>
       <td>${escapeHtml(book.author)}</td>
       <td>${escapeHtml(book.genre)}</td>
@@ -113,15 +117,12 @@ export function openDetailSheet(book) {
   document.getElementById('detailTitle').textContent = book.title;
   document.getElementById('detailAuthor').textContent = `by ${book.author}`;
   
-  // Build metadata line
+  // Build metadata line (acquired date hidden from UI but preserved in data)
   const metaParts = [
-    book.fictionType,
+    book.fiction_type,
     book.genre,
     book.difficulty
-  ];
-  if (book.acquiredDate) {
-    metaParts.push(`Acquired: ${formatDisplayDate(book.acquiredDate)}`);
-  }
+  ].filter(Boolean);
   document.getElementById('detailMeta').textContent = metaParts.join(' | ');
 
   // Render formats

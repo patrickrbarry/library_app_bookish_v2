@@ -88,11 +88,26 @@
       </div>
     </div>
 
+    <!-- Bulk Edit Toolbar (shown in select mode) -->
+    <div id="bulkToolbar" class="bulk-toolbar hidden">
+      <span id="bulkCount">0 selected</span>
+      <div class="bulk-actions">
+        <button id="bulkSelectAll" class="bulk-btn">Select All</button>
+        <button id="bulkRead" class="bulk-btn">✅ Read</button>
+        <button id="bulkUnread" class="bulk-btn">📖 Unread</button>
+        <button id="bulkReading" class="bulk-btn">▶️ Reading</button>
+        <button id="bulkCancel" class="bulk-btn-cancel">Cancel</button>
+      </div>
+    </div>
+
     <!-- Books Table -->
     <div class="table-container">
       <table class="books-table">
         <thead>
           <tr>
+            <th id="selectModeHeader" class="select-col">
+              <button id="selectModeBtn" class="select-mode-btn" title="Select books to bulk edit">☑️</button>
+            </th>
             <th data-sort="title" class="sortable">
               Title <span class="sort-indicator"></span>
             </th>
@@ -295,10 +310,8 @@
               <input type="date" id="bookPublicationDate" class="form-input" />
             </div>
 
-            <div class="form-group">
-              <label for="bookAcquiredDate">Acquired Date</label>
-              <input type="date" id="bookAcquiredDate" class="form-input" />
-            </div>
+            <!-- Acquired Date hidden from UI but preserved in data -->
+            <input type="hidden" id="bookAcquiredDate" />
 
             <div class="form-group">
               <label for="bookCoverUrl">Cover URL</label>

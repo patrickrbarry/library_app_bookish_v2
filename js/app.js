@@ -45,7 +45,9 @@ const state = {
   sort: {
     by: 'title',
     ascending: true
-  }
+  },
+  selectMode: false,
+  selectedIds: new Set()
 };
 
 /**
@@ -155,6 +157,14 @@ function setupEventListeners() {
   document.getElementById('scanSpineBtn')?.addEventListener('click', () => {
     showToast('Spine scanning coming soon!');
   });
+
+  // Bulk edit
+  document.getElementById('selectModeBtn')?.addEventListener('click', handleEnterSelectMode);
+  document.getElementById('bulkCancel')?.addEventListener('click', handleExitSelectMode);
+  document.getElementById('bulkSelectAll')?.addEventListener('click', handleSelectAll);
+  document.getElementById('bulkRead')?.addEventListener('click', () => handleBulkStatusUpdate('read'));
+  document.getElementById('bulkUnread')?.addEventListener('click', () => handleBulkStatusUpdate('unread'));
+  document.getElementById('bulkReading')?.addEventListener('click', () => handleBulkStatusUpdate('reading'));
 }
 
 /**
@@ -171,7 +181,7 @@ function applyFiltersAndSort() {
   state.currentBooks = books;
   
   // Render
-  renderBooksTable(books);
+  renderBooksTable(books, state.selectMode);
   updateCounts(books.length, dataStore.getAllBooks().length);
   updateSortIndicator(state.sort.by, state.sort.ascending);
 }
@@ -236,15 +246,31 @@ function handleSort(e) {
 }
 
 /**
- * Handle table row click (open detail)
+ * Handle table row click (open detail, or toggle selection in select mode)
  */
 function handleTableRowClick(e) {
   const row = e.target.closest('tr');
   if (!row) return;
-  
+
   const bookId = row.dataset.bookId;
   if (!bookId) return;
-  
+
+  if (state.selectMode) {
+    // Toggle selection
+    if (state.selectedIds.has(bookId)) {
+      state.selectedIds.delete(bookId);
+      row.classList.remove('selected');
+    } else {
+      state.selectedIds.add(bookId);
+      row.classList.add('selected');
+    }
+    // Sync checkbox
+    const checkbox = row.querySelector('input[type="checkbox"]');
+    if (checkbox) checkbox.checked = state.selectedIds.has(bookId);
+    updateBulkToolbar();
+    return;
+  }
+
   const book = dataStore.getBookById(bookId);
   if (book) {
     openDetailSheet(book);
@@ -564,6 +590,117 @@ async function handleImportFile(e) {
   };
   
   reader.readAsText(file);
+}
+
+/**
+ * Enter select mode — show checkboxes, show bulk toolbar
+ */
+function handleEnterSelectMode() {
+  state.selectMode = true;
+  state.selectedIds.clear();
+  document.getElementById('bulkToolbar').classList.remove('hidden');
+  updateBulkToolbar();
+  // Re-render table so checkboxes appear
+  renderBooksTable(state.currentBooks, true);
+}
+
+/**
+ * Exit select mode — hide checkboxes, hide bulk toolbar
+ */
+function handleExitSelectMode() {
+  state.selectMode = false;
+  state.selectedIds.clear();
+  document.getElementById('bulkToolbar').classList.add('hidden');
+  // Re-render without checkboxes
+  renderBooksTable(state.currentBooks, false);
+}
+
+/**
+ * Select all currently visible books
+ */
+function handleSelectAll() {
+  const allSelected = state.selectedIds.size === state.currentBooks.length;
+  if (allSelected) {
+    // Deselect all
+    state.selectedIds.clear();
+  } else {
+    // Select all visible
+    state.currentBooks.forEach(b => state.selectedIds.add(b.id));
+  }
+  // Re-render to sync checkboxes and row highlights
+  renderBooksTable(state.currentBooks, true);
+  // Restore selected highlights
+  state.selectedIds.forEach(id => {
+    const row = document.querySelector(`tr[data-book-id="${id}"]`);
+    if (row) {
+      row.classList.add('selected');
+      const cb = row.querySelector('input[type="checkbox"]');
+      if (cb) cb.checked = true;
+    }
+  });
+  updateBulkToolbar();
+}
+
+/**
+ * Update the bulk toolbar count and Select All label
+ */
+function updateBulkToolbar() {
+  const count = state.selectedIds.size;
+  document.getElementById('bulkCount').textContent =
+    count === 0 ? 'None selected' : `${count} selected`;
+  document.getElementById('bulkSelectAll').textContent =
+    count === state.currentBooks.length ? 'Deselect All' : 'Select All';
+}
+
+/**
+ * Bulk update status for all selected books
+ */
+async function handleBulkStatusUpdate(newStatus) {
+  if (state.selectedIds.size === 0) {
+    showToast('No books selected');
+    return;
+  }
+
+  const count = state.selectedIds.size;
+  const confirmed = confirm(`Mark ${count} book${count !== 1 ? 's' : ''} as "${newStatus}"?`);
+  if (!confirmed) return;
+
+  let successCount = 0;
+  let errorCount = 0;
+
+  for (const id of state.selectedIds) {
+    const book = dataStore.getBookById(id);
+    if (!book) continue;
+    try {
+      await dataStore.updateBook(id, {
+        title: book.title,
+        author: book.author,
+        status: newStatus,
+        genre: book.genre,
+        fictionType: book.fiction_type,
+        difficulty: book.difficulty,
+        formats: book.formats,
+        notes: book.notes,
+        isbn: book.isbn,
+        publicationDate: book.publication_date,
+        acquiredDate: book.acquired_date,
+        coverUrl: book.cover_url
+      });
+      successCount++;
+    } catch (err) {
+      console.error('Failed to update book:', id, err);
+      errorCount++;
+    }
+  }
+
+  if (errorCount > 0) {
+    showToast(`Updated ${successCount}, failed ${errorCount}`);
+  } else {
+    showToast(`✅ Marked ${successCount} book${successCount !== 1 ? 's' : ''} as "${newStatus}"`);
+  }
+
+  handleExitSelectMode();
+  await loadAndRender();
 }
 
 // Initialize app when DOM is ready
