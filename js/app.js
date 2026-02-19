@@ -136,6 +136,9 @@ function setupEventListeners() {
       handleISBNLookup();
     }
   });
+
+  // Paste from clipboard & lookup
+  document.getElementById('pasteAndLookupBtn')?.addEventListener('click', handlePasteAndLookup);
   
   // Barcode scanning
   document.getElementById('scanBarcodeBtn')?.addEventListener('click', handleBarcodeScanning);
@@ -484,6 +487,34 @@ function handleBarcodeScanning() {
     }
   );
 }
+/**
+ * Handle paste from clipboard and immediately run ISBN lookup
+ */
+async function handlePasteAndLookup() {
+  try {
+    const text = await navigator.clipboard.readText();
+    const isbn = text.trim().replace(/[-\s]/g, '');
+
+    if (!isbn) {
+      showToast('Clipboard is empty');
+      return;
+    }
+
+    // Put it in the input so user can see what was grabbed
+    const input = document.getElementById('isbnInput');
+    if (input) input.value = isbn;
+
+    // Run the lookup
+    await handleISBNLookup();
+
+  } catch (err) {
+    // Clipboard permission denied — fall back to asking user to paste manually
+    console.log('Clipboard read failed:', err);
+    showToast('Tap the ISBN field and paste manually (⌘V or long-press → Paste)');
+    document.getElementById('isbnInput')?.focus();
+  }
+}
+
 /**
  * Handle ISBN lookup
  */

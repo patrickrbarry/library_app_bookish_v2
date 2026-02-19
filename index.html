@@ -167,42 +167,39 @@
       <div class="modal-body">
         <form id="bookForm">
           
-          <!-- Quick Add Options -->
-          <div class="quick-add-section">
-            <h3>📷 Quick Add by Photo</h3>
-            <div class="quick-add-buttons">
-              <button type="button" id="scanBarcodeBtn" class="quick-btn">
-                📷 Scan ISBN Barcode
-              </button>
-              <button type="button" id="scanTitleBtn" class="quick-btn">
-                📖 Scan Title Page
-              </button>
-              <button type="button" id="scanSpineBtn" class="quick-btn">
-                📚 Scan Spine
+          <!-- ISBN Lookup - Primary Method -->
+          <div class="isbn-lookup-section isbn-lookup-primary">
+            <h3>🔍 Look Up by ISBN</h3>
+            <div class="isbn-input-group">
+              <input
+                type="text"
+                id="isbnInput"
+                class="form-input"
+                placeholder="Paste ISBN (10 or 13 digits)"
+              />
+              <button type="button" id="isbnLookupBtn" class="btn-primary">
+                Lookup
               </button>
             </div>
+            <button type="button" id="pasteAndLookupBtn" class="paste-lookup-btn">
+              📋 Paste from Clipboard &amp; Lookup
+            </button>
+            <p class="help-text">
+              iPhone Camera → point at barcode → tap banner → switch to Bookish → tap above
+            </p>
           </div>
 
           <div class="form-divider">
-            <span>OR USE ISBN LOOKUP</span>
+            <span>OR SCAN DIRECTLY</span>
           </div>
 
-          <!-- ISBN Lookup -->
-          <div class="isbn-lookup-section">
-            <div class="isbn-input-group">
-              <input 
-                type="text" 
-                id="isbnInput" 
-                class="form-input"
-                placeholder="Paste ISBN here (10 or 13 digits)" 
-              />
-              <button type="button" id="isbnLookupBtn" class="btn-primary">
-                🔍 Lookup
+          <!-- Barcode Scanner - Secondary Method -->
+          <div class="quick-add-section">
+            <div class="quick-add-buttons">
+              <button type="button" id="scanBarcodeBtn" class="quick-btn">
+                📷 Scan Barcode (needs good light)
               </button>
             </div>
-            <p class="help-text">
-              Use iPhone Camera app → Point at barcode → Tap ISBN → Copy → Paste here
-            </p>
           </div>
 
           <div class="form-divider">

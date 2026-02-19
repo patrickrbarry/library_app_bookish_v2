@@ -607,15 +607,48 @@ body {
   margin-bottom: var(--spacing-lg);
 }
 
+.isbn-lookup-primary {
+  background: var(--bg-filter);
+  border: 2px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+}
+
+.isbn-lookup-primary h3 {
+  font-size: 1rem;
+  color: var(--text-dark);
+  margin-bottom: var(--spacing-sm);
+}
+
 .isbn-input-group {
   display: flex;
   gap: var(--spacing-sm);
 }
 
+.paste-lookup-btn {
+  width: 100%;
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 52px;
+  transition: background 0.2s;
+}
+
+.paste-lookup-btn:hover {
+  background: var(--primary-dark);
+}
+
 .help-text {
   font-size: 0.8rem;
   color: var(--text-light);
-  margin-top: var(--spacing-xs);
+  margin-top: var(--spacing-sm);
+  line-height: 1.4;
 }
 
 .form-grid {
