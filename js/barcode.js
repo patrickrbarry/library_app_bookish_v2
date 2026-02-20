@@ -6,6 +6,7 @@
 let detectedBarcodes = new Set();
 let detectionTimer = null;
 let videoElement = null;
+let scanLocked = false; // prevents processing after first valid ISBN
 
 /**
  * Start barcode scanner with multi-barcode detection
@@ -13,6 +14,7 @@ let videoElement = null;
 export function startBarcodeScanner(containerId, onDetected, onError) {
   // Reset detection state
   detectedBarcodes.clear();
+  scanLocked = false;
   if (detectionTimer) {
     clearTimeout(detectionTimer);
   }
@@ -33,7 +35,7 @@ export function startBarcodeScanner(containerId, onDetected, onError) {
     },
     locate: true,
     numOfWorkers: 2,
-    frequency: 10,
+    frequency: 5,
     decoder: {
       readers: [
         "ean_reader",
@@ -74,37 +76,57 @@ export function startBarcodeScanner(containerId, onDetected, onError) {
 
   // Listen for barcode detections
   Quagga.onDetected(function(result) {
+    // If we already locked in a valid ISBN, ignore further detections
+    if (scanLocked) return;
+
+    // Confidence check — reject noisy/low-quality reads
+    const decodedCodes = result.codeResult.decodedCodes;
+    if (decodedCodes && decodedCodes.length > 0) {
+      const errors = decodedCodes
+        .filter(d => d.error !== undefined)
+        .map(d => d.error);
+      if (errors.length > 0) {
+        const avgError = errors.reduce((a, b) => a + b, 0) / errors.length;
+        if (avgError > 0.25) {
+          // Low confidence — silently ignore (no flash)
+          return;
+        }
+      }
+    }
+
     const code = result.codeResult.code;
-    console.log("Barcode detected:", code);
-    
+    console.log("Barcode detected (high confidence):", code);
+
     // Remove any hyphens/spaces
     const cleanCode = code.replace(/[-\s]/g, '');
-    
+
     // Only accept valid ISBN lengths (10 or 13 digits)
     if (cleanCode.length === 10 || cleanCode.length === 13) {
       console.log("✅ Valid ISBN detected:", cleanCode);
+
+      // Lock scanning — stop accepting new detections
+      scanLocked = true;
       detectedBarcodes.add(cleanCode);
-      
+
       // Visual feedback - flash green
       flashBarcodeDetection(true);
-      
-      // Update status - clear "SCANNED!" message
-      updateStatus(`✅ SCANNED! Found ${detectedBarcodes.size} ISBN(s)`, 'success');
-      
-      // Reset timer - collect barcodes for 5 seconds after last detection
-      if (detectionTimer) {
-        clearTimeout(detectionTimer);
-      }
-      
+
+      // Update status with the actual ISBN
+      updateStatus(`✅ SCANNED: ${cleanCode}`, 'success');
+
+      // Stop listening for more detections
+      Quagga.offDetected();
+
+      // Brief delay to show success, then process
       detectionTimer = setTimeout(() => {
-        console.log(`Finished scanning. Found ${detectedBarcodes.size} unique ISBNs:`, Array.from(detectedBarcodes));
-        updateStatus('🔍 Processing barcodes...', 'info');
+        console.log(`Processing ISBN: ${cleanCode}`);
+        updateStatus('🔍 Looking up book...', 'info');
         onDetected(Array.from(detectedBarcodes));
-      }, 5000);
-      
+      }, 1500);
+
     } else {
       console.log("Invalid ISBN length, ignoring:", cleanCode);
-      // Flash yellow for invalid barcode
+      // Flash yellow for invalid barcode (but don't spam — throttle)
       flashBarcodeDetection(false);
     }
   });
@@ -194,6 +216,8 @@ export function stopBarcodeScanner() {
     detectionTimer = null;
   }
   detectedBarcodes.clear();
+  scanLocked = false;
   videoElement = null;
+  Quagga.offDetected();
   Quagga.stop();
 }

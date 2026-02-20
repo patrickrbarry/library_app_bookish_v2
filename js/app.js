@@ -55,13 +55,26 @@ const state = {
  */
 async function init() {
   console.log('🚀 Bookish Library v2 Initializing...');
-  
+
   // Load and render initial data
   await loadAndRender();
-  
+
   // Setup event listeners
   setupEventListeners();
-  
+
+  // Check for ?isbn= URL parameter (e.g., from iOS Shortcut)
+  const params = new URLSearchParams(window.location.search);
+  const isbnParam = params.get('isbn');
+  if (isbnParam) {
+    console.log('📖 ISBN parameter detected:', isbnParam);
+    // Clean the URL so reloads don't re-trigger
+    window.history.replaceState({}, '', '/');
+    // Open modal and auto-lookup
+    openBookModal();
+    document.getElementById('isbnInput').value = isbnParam.trim();
+    await handleISBNLookup();
+  }
+
   console.log('✅ Application ready!');
 }
 
