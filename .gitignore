@@ -10,3 +10,7 @@ IMPORT-CLASSIFIED.json
 
 # Logs
 *.log
+.env
+
+# Local Netlify folder
+.netlify

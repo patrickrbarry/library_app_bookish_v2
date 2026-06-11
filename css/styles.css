@@ -92,6 +92,17 @@ body {
   letter-spacing: 0.02em;
   font-weight: 600;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.masthead-icon {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  filter: invert(1);
+  mix-blend-mode: screen;
 }
 
 .header-left p {
