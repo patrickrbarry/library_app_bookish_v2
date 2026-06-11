@@ -20,15 +20,16 @@ import {
   clearISBNInput,
   setISBNLookupLoading
 } from './ui.js';
-import { 
-  showToast, 
-  debounce, 
-  buildAmazonUrl, 
+import {
+  showToast,
+  debounce,
+  buildAmazonUrl,
   copyToClipboard,
   downloadJSON,
   getExportFilename,
   parseImportedJSON
 } from './utils.js';
+import { initDiscover } from './discover.js';
 
 /**
  * Application State
@@ -61,6 +62,9 @@ async function init() {
 
   // Setup event listeners
   setupEventListeners();
+
+  // Discover feature
+  initDiscover();
 
   // Check for ?isbn= URL parameter (e.g., from iOS Shortcut)
   const params = new URLSearchParams(window.location.search);
