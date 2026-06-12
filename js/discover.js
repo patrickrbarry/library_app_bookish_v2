@@ -79,6 +79,7 @@ function buildCard(rec, tasteSummary) {
         <span class="discover-tag">${escHtml(rec.genre || '')}</span>
         ${hasAudible ? '<span class="discover-tag discover-tag-format">🎧 Audible</span>' : ''}
       </div>
+      ${rec.literary_match ? `<div class="discover-card-match">${escHtml(rec.literary_match)}</div>` : ''}
       <div class="discover-card-why">${escHtml(rec.why || '')}</div>
       <div class="discover-card-actions">
         <button class="discover-btn discover-btn-add">+ Add to library</button>
@@ -160,11 +161,13 @@ async function fetchRecommendations(prompt) {
   if (cached) return cached;
 
   const books = dataStore.books.map(b => ({
-    title:       b.title,
-    author:      b.author,
-    status:      b.status,
-    genre:       b.genre,
-    fiction_type: b.fiction_type,
+    title:        b.title,
+    author:       b.author,
+    status:       b.status,
+    genre:        b.genre,
+    fiction_type: b.fictionType || b.fiction_type,
+    difficulty:   b.difficulty,
+    notes:        b.notes || '',
   }));
 
   const res = await fetch('/api/recommend', {

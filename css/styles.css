@@ -1229,9 +1229,17 @@ body {
   background: var(--bg-hover); color: var(--text-medium);
 }
 .discover-tag-format { background: #e8f0fb; color: #2a5298; }
+.discover-card-match {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-top: 0.35rem;
+  letter-spacing: 0.01em;
+}
+
 .discover-card-why {
   font-size: 0.77rem; color: var(--text-medium);
-  line-height: 1.55; margin-top: 0.1rem;
+  line-height: 1.55; margin-top: 0.25rem;
 }
 
 /* Action row */

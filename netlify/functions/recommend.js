@@ -1,7 +1,7 @@
 /**
  * Bookish — /api/recommend
- * Accepts { prompt, books } and returns a JSON array of book recommendations
- * powered by Claude. Keeps the Anthropic API key server-side.
+ * Accepts { prompt, books } and returns a JSON array of deeply reasoned
+ * book recommendations powered by Claude.
  */
 
 exports.handler = async (event) => {
@@ -17,7 +17,6 @@ exports.handler = async (event) => {
     };
   }
 
-  // Parse request
   let prompt = '';
   let books = [];
   try {
@@ -26,61 +25,160 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid request body' }) };
   }
 
-  // Build context from the library
-  const readBooks = books.filter(b => b.status === 'read');
+  // ── Build a rich context picture from the library ──────────────────────────
 
+  const readBooks    = books.filter(b => b.status === 'read');
+  const readingBooks = books.filter(b => b.status === 'reading');
+  const allTitles    = new Set(books.map(b => b.title.toLowerCase()));
+
+  // Fiction / nonfiction split
+  const fictionCount    = readBooks.filter(b => b.fiction_type === 'Fiction').length;
+  const nonfictionCount = readBooks.filter(b => b.fiction_type === 'Nonfiction').length;
+
+  // Difficulty distribution
+  const diffCounts = { Light: 0, Moderate: 0, Dense: 0 };
+  readBooks.forEach(b => { if (b.difficulty && diffCounts[b.difficulty] !== undefined) diffCounts[b.difficulty]++; });
+
+  // Genre breakdown (top 8)
   const genreCounts = {};
-  readBooks.forEach(b => {
-    if (b.genre) genreCounts[b.genre] = (genreCounts[b.genre] || 0) + 1;
-  });
+  readBooks.forEach(b => { if (b.genre) genreCounts[b.genre] = (genreCounts[b.genre] || 0) + 1; });
   const topGenres = Object.entries(genreCounts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([g]) => g)
+    .slice(0, 8)
+    .map(([g, n]) => `${g} (${n})`)
     .join(', ');
 
-  const allTitlesBlock = books
-    .map(b => `- ${b.title} by ${b.author}`)
-    .join('\n');
+  // Format a single book for the context block
+  function formatBook(b) {
+    const tags = [b.genre, b.fiction_type, b.difficulty].filter(Boolean).join(' · ');
+    const notes = b.notes ? ` — reader note: "${b.notes}"` : '';
+    return `- ${b.title} by ${b.author}${tags ? ` [${tags}]` : ''}${notes}`;
+  }
 
-  const readBooksBlock = readBooks
-    .map(b => `- ${b.title} by ${b.author} [${b.genre || 'Unknown'}]`)
-    .join('\n');
+  const readBooksBlock    = readBooks.map(formatBook).join('\n') || '(none yet)';
+  const readingBooksBlock = readingBooks.map(formatBook).join('\n') || '(none)';
+  const allTitlesBlock    = books.map(b => `- ${b.title}`).join('\n');
 
-  const systemPrompt = `You are a personal book recommendation engine with deep knowledge of literature. \
-You have been given a reader's complete library. Return ONLY a valid JSON array — no markdown fences, \
-no explanation, nothing outside the array.
+  // ── System prompt ───────────────────────────────────────────────────────────
+
+  const systemPrompt = `You are a literary advisor with unusually broad and deep reading across fiction and \
+nonfiction — the kind of person who follows prize lists, reads reviews in the LRB and NYRB, and thinks \
+seriously about what makes writing genuinely good.
+
+Your task is to study a reader's library and generate precise, substantive book recommendations. \
+The goal is not to find more books in the same genre — it is to find books that match the specific \
+literary character of what this person already values.
+
+─── HOW TO ANALYSE THE LIBRARY ───────────────────────────────────────────────
+
+Before recommending anything, form a detailed picture of this reader's literary sensibility:
+
+  PROSE & STYLE
+  What kind of writing have they gravitated toward? Dense, architecturally complex sentences or \
+clean declarative prose? Maximalist or restrained? Formally experimental or conventionally structured?
+
+  INTELLECTUAL REGISTER
+  Are they drawn to books that advance arguments and change how you think (even in fiction), or to \
+books that immerse and entertain? What level of prior knowledge do the books assume?
+
+  EMOTIONAL TONE
+  Melancholic, ironic, propulsive, comic, elegiac, cold, warm? What emotional world do the books \
+they've read inhabit?
+
+  THEMATIC PREOCCUPATIONS
+  What ideas, periods, problems, or human situations keep appearing? Power, consciousness, history, \
+place, identity, science, mortality, institutions?
+
+  QUALITY SIGNALS
+  Have they read books that won or were shortlisted for major prizes (Booker, Pulitzer, National Book \
+Award, Nobel, PEN/Faulkner, Baillie Gifford, NBCC, Costa)? Do they tend toward canonical works, \
+contemporary literary fiction, narrative nonfiction, or a mix?
+
+─── RECOMMENDATION CRITERIA ────────────────────────────────────────────────
+
+Recommend only books with genuine literary distinction. This means:
+  - Critically recognised, prize-winning, or considered essential by serious readers
+  - NOT chosen because they share a genre label or an author with something already read
+  - Chosen because they share something specific: a mode of attention, a prose register, a \
+quality of thinking, a way of inhabiting a subject
+
+─── THE "WHY" FIELD ────────────────────────────────────────────────────────
+
+This is the most important field. Write 3–5 sentences of genuine literary reasoning. You must:
+  - Name specific literary qualities of books this person has read (not just the title)
+  - Explain what precise quality this recommendation shares with those books
+  - Reference critical standing, prizes, or reputation where it strengthens the case
+  - Avoid filler phrases like "if you enjoyed X you'll love Y" — explain WHY, with specifics
+
+Examples of weak "why":
+  ✗ "Since you read several nonfiction books, you might enjoy this one too."
+  ✗ "You've read Cormac McCarthy before and this has a similar feel."
+
+Examples of strong "why":
+  ✓ "Your copy of Stoner sits alongside several books whose power comes from restraint — \
+prose that earns its weight by refusing ornament. Marilynne Robinson's Gilead works the same \
+economy: a dying man writing letters to a son who won't remember him, every sentence doing \
+double duty as theology and grief. It won the Pulitzer and is considered by many critics the \
+finest American novel of the past twenty years."
+  ✓ "The density you've shown tolerance for — Tocqueville, Barrett — suggests you're \
+comfortable with books that demand active reading rather than passive absorption. Thinking, \
+Fast and Slow belongs in that company: Kahneman synthesises decades of research into a model \
+of mind that genuinely changes how you see behaviour, including your own."
+
+─── OUTPUT FORMAT ───────────────────────────────────────────────────────────
+
+Return ONLY a valid JSON array — no markdown fences, no commentary outside the array.
 
 Each element must have exactly these fields:
 {
   "title": string,
   "author": string,
   "genre": string,
-  "fiction_type": "Fiction" or "Nonfiction",
-  "why": string — 2-3 sentences anchored to at least one specific title from the read list,
-  "suggested_formats": array containing one or both of "audible" and "physical",
-  "taste_summary": string — include ONLY on the first element; 1-2 sentences summarising the reader's taste
+  "fiction_type": "Fiction" | "Nonfiction",
+  "why": string — 3-5 sentences of genuine literary reasoning as described above,
+  "literary_match": string — one precise sentence naming the specific quality that creates the match (e.g. "Shares the moral seriousness and tonal restraint of Stoner"),
+  "suggested_formats": array of zero or more of: "audible", "physical", "kindle",
+  "taste_summary": string — ONLY on element [0]; 2-3 sentences capturing the reader's literary character in specific terms, not genre labels
 }
 
 Rules:
-- Never recommend a book already present in the library (check every title).
-- The "why" field must name at least one book the reader has actually read.
-- Produce 5-7 recommendations total.
-- taste_summary appears only on element [0] and is omitted from all others.`;
+  - Never recommend a book already in the library (check every title carefully)
+  - Produce exactly 5–7 recommendations
+  - taste_summary appears only on element [0]; omit the field entirely from all others
+  - If fewer than 5 books have been read, acknowledge that but still generate strong recommendations
+  - Honour any specific request, but only recommend books that genuinely merit the reader's time`;
 
-  const userMessage = `The reader has read ${readBooks.length} books. Top genres: ${topGenres}.
+  // ── User message ─────────────────────────────────────────────────────────────
 
-ALL books in their library — do NOT recommend any of these:
-${allTitlesBlock}
+  const userMessage = `
+READER'S LIBRARY
+─────────────────
+Total books: ${books.length}
+Books read: ${readBooks.length}
+Currently reading: ${readingBooks.length}
 
-Books they have READ (use these to understand their taste):
+Fiction / Nonfiction split (read): ${fictionCount} fiction, ${nonfictionCount} nonfiction
+Difficulty (read): Light ${diffCounts.Light} · Moderate ${diffCounts.Moderate} · Dense ${diffCounts.Dense}
+Top genres (read): ${topGenres || 'n/a'}
+
+BOOKS READ — study these carefully to understand taste:
 ${readBooksBlock}
 
-${prompt ? `Their specific request: "${prompt}"` : 'Give your best open-ended recommendations based on their taste.'}
+CURRENTLY READING — context only:
+${readingBooksBlock}
 
-Return only the JSON array.`;
+ALL LIBRARY TITLES — do not recommend any of these:
+${allTitlesBlock}
 
-  // Call Claude
+${prompt
+  ? `SPECIFIC REQUEST: "${prompt}"\nHonour this request, but only recommend books that genuinely match the reader's demonstrated literary sensibility.`
+  : 'No specific request — give your most considered open-ended recommendations based on everything you observe about this reader.'
+}
+
+Return only the JSON array.`.trim();
+
+  // ── Call Claude ─────────────────────────────────────────────────────────────
+
   let claudeResponse;
   try {
     claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
@@ -91,10 +189,10 @@ Return only the JSON array.`;
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-5',
-        max_tokens: 2048,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userMessage }],
+        model:      'claude-opus-4-5',
+        max_tokens: 4096,
+        system:     systemPrompt,
+        messages:   [{ role: 'user', content: userMessage }],
       }),
     });
   } catch (err) {
@@ -108,8 +206,6 @@ Return only the JSON array.`;
 
   const claudeData = await claudeResponse.json();
   const raw = (claudeData.content?.[0]?.text || '').trim();
-
-  // Strip any accidental markdown code fences
   const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
 
   let recommendations;
