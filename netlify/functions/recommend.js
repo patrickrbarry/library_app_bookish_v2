@@ -189,8 +189,8 @@ Return only the JSON array.`.trim();
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model:      'claude-opus-4-5',
-        max_tokens: 4096,
+        model:      'claude-sonnet-4-5',
+        max_tokens: 3000,
         system:     systemPrompt,
         messages:   [{ role: 'user', content: userMessage }],
       }),
