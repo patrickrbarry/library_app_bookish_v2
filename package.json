@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/patrickrbarry/library_app_bookish_v2#readme",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.1",
     "@supabase/supabase-js": "^2.90.1"
   }
 }

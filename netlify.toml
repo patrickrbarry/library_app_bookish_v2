@@ -1,9 +1,14 @@
 [build]
   publish = "."
   functions = "netlify/functions"
+  edge_functions = "netlify/edge-functions"
 
 [functions]
   node_bundler = "esbuild"
+
+# /api/recommend is handled by the Edge Function (edge-functions/recommend.js).
+# The edge function exports `config = { path: '/api/recommend' }` which takes
+# precedence over any redirect — no separate redirect entry needed.
 
 [[redirects]]
   from = "/api/*"

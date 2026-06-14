@@ -1,51 +1,44 @@
 /**
- * Bookish — /api/recommend
- * Accepts { prompt, books } and returns a JSON array of deeply reasoned
- * book recommendations powered by Claude.
+ * Bookish — /api/recommend  (Netlify Edge Function)
+ * Runs on Cloudflare-edge infrastructure so it can reach api.anthropic.com.
+ * Accepts { prompt, books } → returns JSON array of literary recommendations.
  */
 
-const Anthropic = require('@anthropic-ai/sdk');
-
-exports.handler = async (event) => {
-  console.log('[recommend] handler invoked', event.httpMethod);
-
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+export default async (request) => {
+  if (request.method !== 'POST') {
+    return new Response('Method Not Allowed', { status: 405 });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  console.log('[recommend] apiKey present:', !!apiKey);
+  const apiKey = Netlify.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'ANTHROPIC_API_KEY is not configured' }),
-    };
+    return new Response(
+      JSON.stringify({ error: 'ANTHROPIC_API_KEY is not configured' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
   let prompt = '';
   let books = [];
   try {
-    ({ prompt = '', books = [] } = JSON.parse(event.body));
+    ({ prompt = '', books = [] } = await request.json());
   } catch {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid request body' }) };
+    return new Response(
+      JSON.stringify({ error: 'Invalid request body' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
   }
-  console.log(`[recommend] parsed body: prompt="${prompt}", books=${books.length}`);
 
-  // ── Build a rich context picture from the library ──────────────────────────
+  // ── Build a rich context picture from the library ────────────────────────────
 
   const readBooks    = books.filter(b => b.status === 'read');
   const readingBooks = books.filter(b => b.status === 'reading');
-  const allTitles    = new Set(books.map(b => b.title.toLowerCase()));
 
-  // Fiction / nonfiction split
   const fictionCount    = readBooks.filter(b => b.fiction_type === 'Fiction').length;
   const nonfictionCount = readBooks.filter(b => b.fiction_type === 'Nonfiction').length;
 
-  // Difficulty distribution
   const diffCounts = { Light: 0, Moderate: 0, Dense: 0 };
   readBooks.forEach(b => { if (b.difficulty && diffCounts[b.difficulty] !== undefined) diffCounts[b.difficulty]++; });
 
-  // Genre breakdown (top 8)
   const genreCounts = {};
   readBooks.forEach(b => { if (b.genre) genreCounts[b.genre] = (genreCounts[b.genre] || 0) + 1; });
   const topGenres = Object.entries(genreCounts)
@@ -54,7 +47,6 @@ exports.handler = async (event) => {
     .map(([g, n]) => `${g} (${n})`)
     .join(', ');
 
-  // Format a single book for the context block
   function formatBook(b) {
     const tags = [b.genre, b.fiction_type, b.difficulty].filter(Boolean).join(' · ');
     const notes = b.notes ? ` — reader note: "${b.notes}"` : '';
@@ -65,7 +57,7 @@ exports.handler = async (event) => {
   const readingBooksBlock = readingBooks.map(formatBook).join('\n') || '(none)';
   const allTitlesBlock    = books.map(b => `- ${b.title}`).join('\n');
 
-  // ── System prompt ───────────────────────────────────────────────────────────
+  // ── System prompt ────────────────────────────────────────────────────────────
 
   const systemPrompt = `You are a literary advisor with unusually broad and deep reading across fiction and \
 nonfiction — the kind of person who follows prize lists, reads reviews in the LRB and NYRB, and thinks \
@@ -116,21 +108,6 @@ This is the most important field. Write 3–5 sentences of genuine literary reas
   - Reference critical standing, prizes, or reputation where it strengthens the case
   - Avoid filler phrases like "if you enjoyed X you'll love Y" — explain WHY, with specifics
 
-Examples of weak "why":
-  ✗ "Since you read several nonfiction books, you might enjoy this one too."
-  ✗ "You've read Cormac McCarthy before and this has a similar feel."
-
-Examples of strong "why":
-  ✓ "Your copy of Stoner sits alongside several books whose power comes from restraint — \
-prose that earns its weight by refusing ornament. Marilynne Robinson's Gilead works the same \
-economy: a dying man writing letters to a son who won't remember him, every sentence doing \
-double duty as theology and grief. It won the Pulitzer and is considered by many critics the \
-finest American novel of the past twenty years."
-  ✓ "The density you've shown tolerance for — Tocqueville, Barrett — suggests you're \
-comfortable with books that demand active reading rather than passive absorption. Thinking, \
-Fast and Slow belongs in that company: Kahneman synthesises decades of research into a model \
-of mind that genuinely changes how you see behaviour, including your own."
-
 ─── OUTPUT FORMAT ───────────────────────────────────────────────────────────
 
 Return ONLY a valid JSON array — no markdown fences, no commentary outside the array.
@@ -141,15 +118,15 @@ Each element must have exactly these fields:
   "author": string,
   "genre": string,
   "fiction_type": "Fiction" | "Nonfiction",
-  "why": string — 3-5 sentences of genuine literary reasoning as described above,
-  "literary_match": string — one precise sentence naming the specific quality that creates the match (e.g. "Shares the moral seriousness and tonal restraint of Stoner"),
+  "why": string — 3-5 sentences of genuine literary reasoning,
+  "literary_match": string — one precise sentence naming the specific quality that creates the match,
   "suggested_formats": array of zero or more of: "audible", "physical", "kindle",
-  "taste_summary": string — ONLY on element [0]; 2-3 sentences capturing the reader's literary character in specific terms, not genre labels
+  "taste_summary": string — ONLY on element [0]; 2-3 sentences capturing the reader's literary character
 }
 
 Rules:
   - Never recommend a book already in the library (check every title carefully)
-  - Produce exactly 5–7 recommendations
+  - Produce exactly 5 recommendations
   - taste_summary appears only on element [0]; omit the field entirely from all others
   - If fewer than 5 books have been read, acknowledge that but still generate strong recommendations
   - Honour any specific request, but only recommend books that genuinely merit the reader's time`;
@@ -183,24 +160,57 @@ ${prompt
 
 Return only the JSON array.`.trim();
 
-  // ── Call Claude ─────────────────────────────────────────────────────────────
-  console.log('[recommend] calling Claude API via SDK...');
+  // ── Pre-warm connection (Netlify edge cold-start fix) ────────────────────────
+  // First connection to api.anthropic.com/v1/messages from a cold edge instance
+  // hangs indefinitely. Sending a minimal malformed POST (missing required fields)
+  // returns 400 in <1s without running inference, but establishes the
+  // TLS/HTTP2 session so the real request below can reuse it.
+  // Pre-warm the HTTP/2 session (cold Netlify edge instances hang on first
+  // connection to api.anthropic.com/v1/messages). A well-structured POST with
+  // an intentionally invalid model name returns 400 in ~200ms without running
+  // inference, establishing the session the real request below reuses.
+  await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-haiku-3-5-20241022', max_tokens: 1, messages: [{ role: 'user', content: ' ' }] }),
+    signal: AbortSignal.timeout(10000),
+  }).catch(() => {});
 
-  const client = new Anthropic({ apiKey });
-  let claudeData;
+  // ── Call Anthropic API ────────────────────────────────────────────────────────
+
+  let apiResponse;
   try {
-    claudeData = await client.messages.create({
-      model:      'claude-sonnet-4-5',
-      max_tokens: 3000,
-      system:     systemPrompt,
-      messages:   [{ role: 'user', content: userMessage }],
+    apiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+      signal: AbortSignal.timeout(35000),
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model:      'claude-sonnet-4-5',
+        max_tokens: 2000,
+        system:     systemPrompt,
+        messages:   [{ role: 'user', content: userMessage }],
+      }),
     });
   } catch (err) {
-    console.log(`[recommend] SDK error: ${err.message}`);
-    return { statusCode: 502, body: JSON.stringify({ error: 'Failed to reach Claude API', details: err.message }) };
+    return new Response(
+      JSON.stringify({ error: 'Failed to reach Claude API', details: err.message }),
+      { status: 502, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
-  console.log(`[recommend] Claude responded, stop_reason=${claudeData.stop_reason}`);
+  if (!apiResponse.ok) {
+    const errText = await apiResponse.text();
+    return new Response(
+      JSON.stringify({ error: 'Claude API error', details: errText }),
+      { status: 502, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const claudeData = await apiResponse.json();
   const raw = (claudeData.content?.[0]?.text || '').trim();
   const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
 
@@ -209,18 +219,19 @@ Return only the JSON array.`.trim();
     recommendations = JSON.parse(cleaned);
     if (!Array.isArray(recommendations)) throw new Error('Expected an array');
   } catch {
-    return {
-      statusCode: 502,
-      body: JSON.stringify({ error: 'Could not parse recommendations', raw }),
-    };
+    return new Response(
+      JSON.stringify({ error: 'Could not parse recommendations', raw }),
+      { status: 502, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
-  return {
-    statusCode: 200,
+  return new Response(JSON.stringify(recommendations), {
+    status: 200,
     headers: {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',
     },
-    body: JSON.stringify(recommendations),
-  };
+  });
 };
+
+export const config = { path: '/api/recommend' };
