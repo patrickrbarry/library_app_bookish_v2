@@ -5,6 +5,18 @@
  */
 
 export default async (request) => {
+  try {
+    return await handleRequest(request);
+  } catch (err) {
+    console.error('[recommend] uncaught:', err.message, err.stack);
+    return new Response(
+      JSON.stringify({ error: 'Internal error', details: err.message }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+};
+
+async function handleRequest(request) {
   if (request.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 });
   }
@@ -181,7 +193,7 @@ Return only the JSON array.`.trim();
   let apiResponse;
   try {
     apiResponse = await fetch('https://api.anthropic.com/v1/messages', {
-      signal: AbortSignal.timeout(35000),
+      signal: AbortSignal.timeout(38000),
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -190,7 +202,7 @@ Return only the JSON array.`.trim();
       },
       body: JSON.stringify({
         model:      'claude-sonnet-4-5',
-        max_tokens: 2000,
+        max_tokens: 1500,
         system:     systemPrompt,
         messages:   [{ role: 'user', content: userMessage }],
       }),
@@ -232,6 +244,6 @@ Return only the JSON array.`.trim();
       'Cache-Control': 'no-store',
     },
   });
-};
+}
 
 export const config = { path: '/api/recommend' };

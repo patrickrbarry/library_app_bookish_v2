@@ -170,20 +170,26 @@ async function fetchRecommendations(prompt) {
     notes:        b.notes || '',
   }));
 
-  const res = await fetch('/api/recommend', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ prompt, books }),
-  });
+  // Single auto-retry — Netlify edge cold-starts occasionally fail on first hit
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch('/api/recommend', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ prompt, books }),
+    });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
+    if (res.ok) {
+      const data = await res.json();
+      writeCache(prompt, data);
+      return data;
+    }
+
+    if (attempt === 1) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    await new Promise(r => setTimeout(r, 800));
   }
-
-  const data = await res.json();
-  writeCache(prompt, data);
-  return data;
 }
 
 // ── Run discovery ─────────────────────────────────────────────────────────────
