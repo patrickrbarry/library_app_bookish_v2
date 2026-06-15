@@ -1190,6 +1190,25 @@ body {
   font-style: italic; padding: 1rem 0;
 }
 
+.discover-email-btn {
+  display: block;
+  width: 100%;
+  margin-top: 1.4rem;
+  padding: 0.65rem 1rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: var(--text-light);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+.discover-email-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Recommendation card */
 .discover-card {
   background: var(--bg-card);

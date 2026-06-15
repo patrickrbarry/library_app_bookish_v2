@@ -192,6 +192,40 @@ async function fetchRecommendations(prompt) {
   }
 }
 
+// ── Email results ─────────────────────────────────────────────────────────────
+function emailResults(recs, promptText) {
+  const EMAIL_KEY = 'bookish_email';
+
+  let to = localStorage.getItem(EMAIL_KEY) || '';
+  if (!to) {
+    to = (window.prompt('Enter your email address:') || '').trim();
+    if (!to) return;
+    localStorage.setItem(EMAIL_KEY, to);
+  }
+
+  const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const header = promptText
+    ? `Bookish recommendations for: "${promptText}"\n${date}\n`
+    : `Bookish recommendations\n${date}\n`;
+
+  const body = recs.map((r, i) => {
+    const lines = [
+      `${i + 1}. ${r.title.toUpperCase()} — ${r.author}`,
+      `   ${r.genre || ''} · ${r.fiction_type || ''}`,
+      `   ${r.why || ''}`,
+    ];
+    if (r.literary_match) lines.push(`   Match: ${r.literary_match}`);
+    return lines.join('\n');
+  }).join('\n\n');
+
+  const footer = '\n\n—\nSent from Bookish · bookish.patrickrbarry.com';
+
+  const subject = encodeURIComponent(`Bookish: ${promptText ? `"${promptText}"` : 'recommendations'} · ${date}`);
+  const bodyEncoded = encodeURIComponent(`${header}\n${body}${footer}`);
+
+  window.location.href = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${bodyEncoded}`;
+}
+
 // ── Run discovery ─────────────────────────────────────────────────────────────
 async function runDiscover() {
   const prompt   = ($('discoverPrompt').value || '').trim();
@@ -228,6 +262,13 @@ async function runDiscover() {
       const nodes = buildCard(rec, tasteSummary);
       nodes.forEach(n => results.appendChild(n));
     });
+
+    // Email button
+    const emailBtn = document.createElement('button');
+    emailBtn.className = 'discover-email-btn';
+    emailBtn.textContent = '✉ Email these to me';
+    emailBtn.addEventListener('click', () => emailResults(recs, prompt));
+    results.appendChild(emailBtn);
 
     results.style.display = 'block';
 
